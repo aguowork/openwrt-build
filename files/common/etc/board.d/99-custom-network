@@ -1,0 +1,9 @@
+#!/bin/sh
+# 通过 board.json 设置首次生成网络配置时的默认地址。
+# 已有 /etc/config/network 的保留配置升级不会重新生成 LAN 地址。
+. /lib/functions/uci-defaults.sh
+
+board_config_update
+ucidef_set_interface "lan" ipaddr "192.168.169.1"
+board_config_flush
+exit 0

@@ -1,0 +1,12 @@
+#!/bin/sh /etc/rc.common
+# 由 /etc/rc.common 读取。
+# shellcheck disable=SC2034
+START=99
+
+boot() {
+    mkdir -p /etc/crontabs
+    touch /etc/crontabs/root
+    sed -i '/drop_caches/d; /wireguard_watchdog/d' /etc/crontabs/root
+    echo '15 3 * * * sync && echo 3 > /proc/sys/vm/drop_caches' >> /etc/crontabs/root
+    crontab /etc/crontabs/root
+}

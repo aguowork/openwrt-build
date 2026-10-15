@@ -1,0 +1,157 @@
+name: 构建并发布 OpenWrt
+run-name: ${{ inputs.device }} · Passwall=${{ inputs.passwall }} · 大鹅=${{ inputs.daed }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      device:
+        description: 构建目标
+        type: choice
+        required: true
+        default: redmi_ax6000_immwrt
+        options:
+          - redmi_ax6_immwrt
+          - redmi_ax6_libwrt
+          - redmi_ax6000_immwrt
+      passwall:
+        description: 编入 Passwall
+        type: boolean
+        default: false
+      daed:
+        description: 编入大鹅 Dashboard（含 dae）
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: openwrt-${{ github.ref }}-${{ inputs.device }}-${{ inputs.passwall }}-${{ inputs.daed }}
+  cancel-in-progress: false
+
+env:
+  TZ: Asia/Shanghai
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build:
+    name: 编译固件
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    outputs:
+      release_tag: ${{ steps.prepare.outputs.release_tag }}
+    steps:
+      - name: 检出构建配置
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: 准备编译环境
+        run: |
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc \
+            /usr/local/.ghcup /usr/share/swift /opt/hostedtoolcache
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            asciidoc binutils bison build-essential ccache clang cmake curl \
+            device-tree-compiler dwarves file flex g++-multilib gawk gcc-multilib \
+            gettext git gperf libelf-dev libfuse-dev libglib2.0-dev libgmp-dev \
+            libltdl-dev libmpc-dev libmpfr-dev libncurses-dev libpython3-dev \
+            libreadline-dev libssl-dev libtool llvm ninja-build p7zip-full \
+            patch pkgconf python3 python3-pyelftools python3-setuptools \
+            rsync scons squashfs-tools subversion swig texinfo unzip wget \
+            xsltproc zlib1g-dev zstd
+          sudo apt-get clean
+          df -h .
+
+      - name: 准备源码、插件与配置
+        id: prepare
+        env:
+          DEVICE: ${{ inputs.device }}
+          INCLUDE_PASSWALL: ${{ inputs.passwall }}
+          INCLUDE_DAED: ${{ inputs.daed }}
+        run: bash .github/scripts/prepare.sh
+
+      - name: 恢复编译缓存
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: openwrt/.ccache
+          key: ccache-${{ runner.os }}-${{ runner.arch }}-${{ inputs.device }}-${{ hashFiles('profiles/**', 'configs/**', 'feeds/**', 'patches/**', '.github/scripts/**') }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            ccache-${{ runner.os }}-${{ runner.arch }}-${{ inputs.device }}-${{ hashFiles('profiles/**', 'configs/**', 'feeds/**', 'patches/**', '.github/scripts/**') }}-
+
+      - name: 下载编译依赖
+        working-directory: openwrt
+        run: make download -j8 2>&1 | tee ../.work/download.log
+
+      - name: 编译固件
+        working-directory: openwrt
+        env:
+          CCACHE_DIR: ${{ github.workspace }}/openwrt/.ccache
+          CCACHE_MAXSIZE: 2G
+        run: |
+          make -j"$(nproc)" 2>&1 | tee ../.work/build.log || \
+            make -j1 V=s 2>&1 | tee -a ../.work/build.log
+
+      - name: 整理固件与发布说明
+        run: python3 .github/scripts/package.py
+
+      - name: 保存发布文件
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: release-files
+          path: dist/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+
+      - name: 保存失败日志
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: build-logs-${{ inputs.device }}-${{ github.run_attempt }}
+          path: |
+            .work/*.log
+            .work/*.config
+            .work/*.json
+            .work/*.lock
+            openwrt/.config
+            openwrt/logs/
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 7
+
+  release:
+    name: 发布到 Releases
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - name: 下载发布文件
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: release-files
+          path: dist
+
+      - name: 校验文件并发布
+        working-directory: dist
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ needs.build.outputs.release_tag }}
+          CONFIG_COMMIT: ${{ github.sha }}
+        run: |
+          sha256sum --check SHA256SUMS
+          if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release create "$RELEASE_TAG" --draft \
+              --target "$CONFIG_COMMIT" --title "$RELEASE_TAG" --notes-file RELEASE.md
+          fi
+          if [[ "$(gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft)" == true ]]; then
+            gh release upload "$RELEASE_TAG" ./* --clobber
+            gh release edit "$RELEASE_TAG" --draft=false --latest=false
+          fi
+          gh release view "$RELEASE_TAG" --json url --jq .url >> "$GITHUB_STEP_SUMMARY"

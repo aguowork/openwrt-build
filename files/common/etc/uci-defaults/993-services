@@ -1,0 +1,10 @@
+#!/bin/sh
+
+/etc/init.d/custom_task enable
+[ ! -x /etc/init.d/smp_affinity ] || /etc/init.d/smp_affinity enable
+
+if [ "$(uci -q get appfilter.global.enable)" = '0' ]; then
+    /etc/init.d/appfilter disable
+    /etc/init.d/appfilter stop
+fi
+exit 0
