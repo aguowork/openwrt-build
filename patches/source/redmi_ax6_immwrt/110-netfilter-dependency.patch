@@ -1,4 +1,4 @@
-Subject: Avoid duplicate iptables modules on Linux 6.18
+Subject: 避免 Linux 6.18 下重复加载 iptables 模块
 
 --- a/package/kernel/linux/modules/netfilter.mk
 +++ b/package/kernel/linux/modules/netfilter.mk

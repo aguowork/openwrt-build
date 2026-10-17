@@ -100,8 +100,6 @@ if [[ $PLATFORM == nss ]]; then
     find package feeds -type f -name qca-nss-drv.init -exec sed -i 's/^START=.*/START=88/' {} +
     pbuf_init=package/kernel/mac80211/files/qca-nss-pbuf.init
     [[ ! -f $pbuf_init ]] || sed -i 's/^START=.*/START=89/' "$pbuf_init"
-    nss_diag=package/kernel/mac80211/files/nss_diag.sh
-    [[ ! -f $nss_diag ]] || cp "$RECIPE_ROOT/files/nss/usr/bin/nss_diag" "$nss_diag"
 fi
 
 echo '源码定制完成。'

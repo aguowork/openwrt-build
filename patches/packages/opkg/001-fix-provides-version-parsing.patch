@@ -1,15 +1,13 @@
 From: ZqinKing <zqinking23@gmail.com>
 Date: Sun, 12 Jan 2026 16:00:00 +0800
-Subject: [PATCH] libopkg: fix Provides field version parsing
+Subject: [PATCH] libopkg：修复 Provides 字段的版本解析
 
-The parse_providelist function was not correctly handling version
-information in the Provides field. When a package declares
-"Provides: foo=1.0", opkg was creating an abstract package named
-"foo=1.0" instead of "foo", causing dependency resolution to fail.
+parse_providelist 函数未能正确处理 Provides 字段中的版本信息。软件包声明
+"Provides: foo=1.0" 时，opkg 会创建名为 "foo=1.0" 而非 "foo" 的抽象软件包，
+导致依赖解析失败。
 
-This patch strips the version suffix from Provides entries before
-creating the abstract package, ensuring that dependencies on
-virtual packages are correctly resolved.
+本补丁在创建抽象软件包前移除 Provides 条目中的版本后缀，确保虚拟软件包依赖
+能够正确解析。
 
 Signed-off-by: ZqinKing <zqinking23@gmail.com>
 ---
@@ -30,10 +28,10 @@ Signed-off-by: ZqinKing <zqinking23@gmail.com>
  		if (!tmp)
  			break;
  
-+		/* Strip version information from Provides entry.
-+		 * Provides can be in format "pkgname" or "pkgname=version"
-+		 * or "pkgname (= version)" or "pkgname (>= version)" etc.
-+		 * We only care about the package name for virtual package resolution.
++		/* 移除 Provides 条目中的版本信息。
++		 * 格式可以是 "pkgname"、"pkgname=version"、
++		 * "pkgname (= version)" 或 "pkgname (>= version)" 等。
++		 * 解析虚拟软件包时只需保留软件包名称。
 +		 */
 +		version_sep = strpbrk(item, "=(<>");
 +		if (version_sep)
