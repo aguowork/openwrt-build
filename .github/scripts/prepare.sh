@@ -21,8 +21,9 @@ done
 # 配置来自本次 checkout 的仓库文件，不执行工作流输入中的代码。
 # shellcheck source=/dev/null
 source "$RECIPE_ROOT/profiles/$DEVICE.conf"
-: "${SOURCE_URL:?}" "${SOURCE_BRANCH:?}" "${DEVICE_CONFIG:?}" "${PLATFORM:?}" "${TARGET:?}"
-export SOURCE_URL SOURCE_BRANCH PLATFORM TARGET DEVICE
+: "${SOURCE_URL:?}" "${SOURCE_BRANCH:?}" "${DEVICE_CONFIG:?}" "${FILES_PROFILE:?}" "${PLATFORM:?}" "${TARGET:?}"
+[[ $FILES_PROFILE =~ ^[a-z0-9_]+$ ]] || { echo "无效的固件文件配置目录：$FILES_PROFILE" >&2; exit 1; }
+export SOURCE_URL SOURCE_BRANCH PLATFORM TARGET DEVICE FILES_PROFILE
 cd "$RECIPE_ROOT"
 mkdir -p .work
 exec > >(tee .work/prepare.log) 2>&1
@@ -65,8 +66,8 @@ echo '::endgroup::'
 echo '::group::应用补丁与固件默认文件'
 bash .github/scripts/customize.sh
 mkdir -p "$SOURCE_DIR/files"
-for overlay in "$RECIPE_ROOT/files/common" "$RECIPE_ROOT/files/$PLATFORM"; do
-    [[ ! -d $overlay ]] || cp -a "$overlay/." "$SOURCE_DIR/files/"
+for overlay in "$RECIPE_ROOT/files/common" "$RECIPE_ROOT/files/$FILES_PROFILE"; do
+    [[ ! -d $overlay ]] || rsync -a --exclude='/.gitkeep' "$overlay/" "$SOURCE_DIR/files/"
 done
 # Windows checkout 不保留 Unix 可执行位，在 runner 上统一设置固件脚本权限。
 find "$SOURCE_DIR/files" -type f \( -path '*/etc/board.d/*' -o -path '*/etc/uci-defaults/*' \
