@@ -155,7 +155,8 @@ jobs:
             gh release create "$RELEASE_TAG" --draft \
               --target "$CONFIG_COMMIT" --title "$RELEASE_TAG" --notes-file RELEASE.md
           fi
-          if [[ "$(gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft)" == true ]]; then
+          release_is_draft=$(gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft)
+          if [[ $release_is_draft == true ]]; then
             gh release upload "$RELEASE_TAG" ./* --clobber
             gh release edit "$RELEASE_TAG" --draft=false --latest=false
           fi

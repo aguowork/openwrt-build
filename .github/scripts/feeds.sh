@@ -85,5 +85,9 @@ while IFS='|' read -r condition policy url branch mappings; do
     rm -rf "$checkout"
 done < "$RECIPE_ROOT/feeds/custom.conf"
 
+# Kong 的 LuCI 应用在运行时下载官方核心，不保留 feeds 或源码自带的
+# adguardhome 包；在全部包准备完成后清理，再由 prepare.sh 统一重建索引。
+find feeds package custom \( -type d -o -type l \) -name adguardhome -prune -exec rm -rf -- {} +
+
 printf '\nsrc-link custom %s/custom\n' "$SOURCE_DIR" >> feeds.conf
 ./scripts/feeds update custom

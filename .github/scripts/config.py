@@ -51,6 +51,7 @@ def verify_config(requested_path, actual_path):
                 "CONFIG_PACKAGE_iwinfo",
                 "CONFIG_PACKAGE_jq",
                 "CONFIG_PACKAGE_jsonfilter",
+                "CONFIG_PACKAGE_luci-compat",
                 "CONFIG_PACKAGE_rpcd-mod-iwinfo",
             }
             or (re.fullmatch(r"CONFIG_PACKAGE_luci-(?:app|theme)-[\w-]+", key)
