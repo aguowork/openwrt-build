@@ -90,4 +90,4 @@ done < "$RECIPE_ROOT/feeds/custom.conf"
 find feeds package custom \( -type d -o -type l \) -name adguardhome -prune -exec rm -rf -- {} +
 
 printf '\nsrc-link custom %s/custom\n' "$SOURCE_DIR" >> feeds.conf
-./scripts/feeds update custom
+# prepare.sh 在应用补丁后统一重建索引并安装，避免重复索引 custom。

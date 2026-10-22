@@ -66,6 +66,19 @@ def read_manifests(paths):
     return kernels.pop(), sorted(applications)
 
 
+def verify_features(manifests, features):
+    required = set()
+    if "daed" in features:
+        required.update({"luci-app-daed", "daed", "daed-geoip", "daed-geosite"})
+    if "passwall" in features:
+        required.add("luci-app-passwall")
+    for path in manifests:
+        installed = {line.partition(" - ")[0] for line in path.read_text(encoding="utf-8").splitlines()}
+        missing = required - installed
+        if missing:
+            raise ValueError(f"{path.name} 缺少所选功能的软件包：{', '.join(sorted(missing))}")
+
+
 def package_release(root):
     root = Path(root).resolve()
     source = root / "openwrt"
@@ -75,6 +88,7 @@ def package_release(root):
     images = select_images(target_dir, source / ".config")
     manifests = sorted(path for path in target_dir.glob("*.manifest") if path.name != "Packages.manifest")
     kernel, applications = read_manifests(manifests)
+    verify_features(manifests, metadata["features"])
     bin_dir = source / "bin"
     modules = sorted(
         path for path in bin_dir.rglob("kmod-*")

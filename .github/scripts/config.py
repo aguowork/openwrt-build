@@ -6,6 +6,15 @@ import re
 import sys
 
 
+REQUIRED_PACKAGES = {
+    "bash", "curl", "iwinfo", "jq", "jsonfilter", "luci-compat", "rpcd-mod-iwinfo",
+}
+
+
+def is_luci_feature(key):
+    return re.fullmatch(r"CONFIG_PACKAGE_luci-(?:app|theme|proto)-[\w.-]+", key) is not None
+
+
 def read_config(path):
     options = {}
     for number, line in enumerate(Path(path).read_text(encoding="utf-8").splitlines(), 1):
@@ -46,21 +55,14 @@ def verify_config(requested_path, actual_path):
         required = (
             key.startswith("CONFIG_TARGET_")
             or key in {"CONFIG_CCACHE", "CONFIG_JSON_OVERVIEW_IMAGE_INFO"}
-            or key in {
-                "CONFIG_PACKAGE_bash",
-                "CONFIG_PACKAGE_curl",
-                "CONFIG_PACKAGE_iwinfo",
-                "CONFIG_PACKAGE_jq",
-                "CONFIG_PACKAGE_jsonfilter",
-                "CONFIG_PACKAGE_luci-compat",
-                "CONFIG_PACKAGE_rpcd-mod-iwinfo",
-            }
-            or (re.fullmatch(r"CONFIG_PACKAGE_luci-(?:app|theme)-[\w-]+", key)
-                and "_" not in key.removeprefix("CONFIG_PACKAGE_"))
+            or key.removeprefix("CONFIG_PACKAGE_") in REQUIRED_PACKAGES
+            or (is_luci_feature(key) and "_" not in key.removeprefix("CONFIG_PACKAGE_"))
         )
         if required and value == "y":
             errors.append(f"所选设备或插件未生效：{key}")
-        if key.startswith("CONFIG_PACKAGE_") and value == "n" and resolved == "y":
+        # 内核模块和底层库允许随依赖调整，禁用的应用和服务仍须保持禁用。
+        dependency = key.startswith(("CONFIG_PACKAGE_kmod-", "CONFIG_PACKAGE_lib"))
+        if key.startswith("CONFIG_PACKAGE_") and not dependency and value == "n" and resolved == "y":
             errors.append(f"已禁用的软件包被依赖重新启用：{key}")
     if differences:
         print("上游依赖解析调整了以下配置（完整配置随 Release 发布）：")
