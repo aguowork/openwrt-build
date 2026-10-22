@@ -1,0 +1,52 @@
+
+{
+  "wifi": [
+    {
+      "name": "b1403",
+      "encryption": "psk2",
+      "password": "13539012490",
+      "band": "5G",
+      "last_updated": "2024-11-14 18:33:40"
+    },
+    {
+      "name": "Tenda_1F5600",
+      "encryption": "psk2",
+      "password": "qwer15207556371asdf",
+      "band": "2G",
+      "last_updated": "2024-11-14 18:33:40"
+    },
+    {
+      "name": "蕊",
+      "encryption": "psk2",
+      "password": "zyp170816",
+      "band": "2G",
+      "last_updated": "2024-11-14 18:33:40"
+    },
+    {
+      "name": "Qiang",
+      "encryption": "psk2",
+      "password": "Qiang8331518",
+      "band": "2G",
+      "last_updated": "2024-11-14 18:33:40"
+    },
+    {
+      "name": "1309",
+      "encryption": "psk2",
+      "password": "13409941080",
+      "band": "2G",
+      "last_updated": "2024-11-14 18:33:40"
+    },
+    {
+      "name": "TP-LINK_FCF3",
+      "encryption": "psk2",
+      "password": "17687610787",
+      "band": "2G",
+      "last_updated": "2024-11-14 18:33:40"
+    }
+  ],
+  "autowifiranking": [
+    {
+      "CQ_TIMES": 0
+    }
+  ]
+}

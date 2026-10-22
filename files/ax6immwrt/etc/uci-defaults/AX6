@@ -1,0 +1,52 @@
+# Redmi AX6 startup defaults.
+
+# 每周三 09:00 自动重启。
+uci set autoreboot.cfg016bf2.enabled='1'
+uci set autoreboot.cfg016bf2.week='3'
+uci set autoreboot.cfg016bf2.hour='9'
+uci commit autoreboot
+
+# 防火墙区域：LAN 使用 lan，WAN 使用 wan、wan6 和 wwan。
+uci del firewall.cfg02dc81.network
+uci add_list firewall.cfg02dc81.network='lan'
+uci del firewall.cfg03dc81.network
+uci add_list firewall.cfg03dc81.network='wan'
+uci add_list firewall.cfg03dc81.network='wan6'
+uci add_list firewall.cfg03dc81.network='wwan'
+uci commit firewall
+
+# 创建通过 DHCP 获取地址的 wwan 接口。
+uci set network.wwan=interface
+uci set network.wwan.proto='dhcp'
+uci commit network
+
+# 2.4G（radio1）：AX 模式、40MHz 带宽及热点设置。
+uci set wireless.radio1.cell_density='0'
+uci set wireless.radio1.htmode='HE40'
+uci set wireless.default_radio1.ssid='H'
+uci set wireless.default_radio1.key='88888888..'
+uci set wireless.default_radio1.encryption='psk2'
+
+# 5G（radio0）：AX 模式、80MHz 带宽、信道 36 及热点设置。
+uci set wireless.radio0.cell_density='0'
+uci set wireless.radio0.htmode='HE80'
+uci set wireless.radio0.channel='36'
+uci set wireless.default_radio0.ssid='H'
+uci set wireless.default_radio0.key='88888888..'
+uci set wireless.default_radio0.encryption='psk2'
+
+# 无线中继：通过 radio0 连接上级热点，接入 wwan 接口。
+uci set wireless.wifinet2=wifi-iface
+uci set wireless.wifinet2.device='radio0'
+uci set wireless.wifinet2.mode='sta'
+uci set wireless.wifinet2.network='wwan'
+uci set wireless.wifinet2.ssid='b1403'
+uci set wireless.wifinet2.encryption='sae'
+uci set wireless.wifinet2.key='13539012490'
+
+# 统一保存无线配置。
+uci commit wireless
+
+# 设置设备显示名称。
+uci set wechatpush.config.device_name='Redmi-AX6'
+uci commit wechatpush

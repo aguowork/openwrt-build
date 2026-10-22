@@ -22,7 +22,16 @@ done
 # shellcheck source=/dev/null
 source "$RECIPE_ROOT/profiles/$DEVICE.conf"
 : "${SOURCE_URL:?}" "${SOURCE_BRANCH:?}" "${DEVICE_CONFIG:?}" "${FILES_PROFILE:?}" "${PLATFORM:?}" "${TARGET:?}"
-[[ $FILES_PROFILE =~ ^[a-z0-9_]+$ ]] || { echo "无效的固件文件配置目录：$FILES_PROFILE" >&2; exit 1; }
+[[ $FILES_PROFILE =~ ^[a-z0-9_]+$ ]] || { echo "无效的固件文件配置目录：FILES_PROFILE" >&2; exit 1; }
+secret_names=(DDNSTO_TOKEN WXPUSHER_TOKEN WXPUSHER_UIDS WECHATPUSH_SC3KEY WECHATPUSH_SC3UID)
+for name in "${secret_names[@]}"; do
+    [[ -n ${!name:-} ]] || { echo "缺少 GitHub Secret：$name" >&2; exit 1; }
+done
+[[ $WXPUSHER_TOKEN =~ ^AT_[A-Za-z0-9_-]+$ ]] || { echo 'GitHub Secret WXPUSHER_TOKEN 格式无效。' >&2; exit 1; }
+[[ $WXPUSHER_UIDS =~ ^UID_[A-Za-z0-9_-]+$ ]] || { echo 'GitHub Secret WXPUSHER_UIDS 格式无效。' >&2; exit 1; }
+for name in "${secret_names[@]}"; do
+    export -n "$name"
+done
 export SOURCE_URL SOURCE_BRANCH PLATFORM TARGET DEVICE FILES_PROFILE
 cd "$RECIPE_ROOT"
 mkdir -p .work
@@ -69,9 +78,17 @@ mkdir -p "$SOURCE_DIR/files"
 for overlay in "$RECIPE_ROOT/files/common" "$RECIPE_ROOT/files/$FILES_PROFILE"; do
     [[ ! -d $overlay ]] || rsync -a --exclude='/.gitkeep' "$overlay/" "$SOURCE_DIR/files/"
 done
+DDNSTO_TOKEN="$DDNSTO_TOKEN" \
+WXPUSHER_TOKEN="$WXPUSHER_TOKEN" \
+WXPUSHER_UIDS="$WXPUSHER_UIDS" \
+WECHATPUSH_SC3KEY="$WECHATPUSH_SC3KEY" \
+WECHATPUSH_SC3UID="$WECHATPUSH_SC3UID" \
+    python3 .github/scripts/inject_secrets.py "$SOURCE_DIR"
 # Windows checkout 不保留 Unix 可执行位，在 runner 上统一设置固件脚本权限。
 find "$SOURCE_DIR/files" -type f \( -path '*/etc/board.d/*' -o -path '*/etc/uci-defaults/*' \
-    -o -path '*/etc/init.d/*' -o -path '*/sbin/*' -o -path '*/usr/bin/*' \) -exec chmod 755 {} +
+    -o -path '*/etc/init.d/*' -o -path '*/etc/rc.local' -o -path '*/etc/JiaoBen/*.sh' \
+    -o -path '*/etc/wx/*.sh' -o -path '*/usr/libexec/rpcd/*' -o -path '*/www/cgi-bin/*' \
+    -o -path '*/sbin/*' -o -path '*/usr/bin/*' \) -exec chmod 755 {} +
 echo '::endgroup::'
 
 echo '::group::安装 feeds 并解析设备配置'

@@ -45,6 +45,14 @@ def verify_config(requested_path, actual_path):
         required = (
             key.startswith("CONFIG_TARGET_")
             or key in {"CONFIG_CCACHE", "CONFIG_JSON_OVERVIEW_IMAGE_INFO"}
+            or key in {
+                "CONFIG_PACKAGE_bash",
+                "CONFIG_PACKAGE_curl",
+                "CONFIG_PACKAGE_iwinfo",
+                "CONFIG_PACKAGE_jq",
+                "CONFIG_PACKAGE_jsonfilter",
+                "CONFIG_PACKAGE_rpcd-mod-iwinfo",
+            }
             or (re.fullmatch(r"CONFIG_PACKAGE_luci-(?:app|theme)-[\w-]+", key)
                 and "_" not in key.removeprefix("CONFIG_PACKAGE_"))
         )

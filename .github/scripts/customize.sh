@@ -1,8 +1,57 @@
 #!/usr/bin/env bash
 # 只处理当前固件使用的包。设备补丁放在 patches/source/，运行时文件放在 files/。
 set -Eeuo pipefail
-: "${RECIPE_ROOT:?}" "${SOURCE_DIR:?}" "${PLATFORM:?}" "${DEVICE:?}"
+: "${RECIPE_ROOT:?}" "${SOURCE_DIR:?}" "${PLATFORM:?}" "${DEVICE:?}" "${BUILD_TIME:?}"
 cd "$SOURCE_DIR"
+
+# 所有设备使用同一套公开默认密码、版本说明和登录 banner。
+python3 - "$RECIPE_ROOT/configs/root-password.txt" "$BUILD_TIME" \
+    package/base-files/files/etc/shadow package/base-files/files/etc/openwrt_release \
+    package/base-files/files/etc/banner <<'PY'
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+password_path, build_time, shadow_path, release_path, banner_path = sys.argv[1:]
+password = Path(password_path).read_text(encoding="utf-8").strip()
+if not password or any(ord(character) < 32 or ord(character) == 127 for character in password):
+    raise SystemExit(f"{password_path}: 默认密码必须是非空的单行文本")
+password_hash = subprocess.run(
+    ["openssl", "passwd", "-6", "-stdin"],
+    input=password + "\n", text=True, capture_output=True, check=True,
+).stdout.strip()
+shadow = Path(shadow_path)
+content = shadow.read_text(encoding="utf-8")
+updated, count = re.subn(
+    r"^(root:)[^:\n]*(:.*)$",
+    lambda match: f"{match.group(1)}{password_hash}{match.group(2)}",
+    content,
+    flags=re.MULTILINE,
+)
+if count != 1:
+    raise SystemExit(f"{shadow}: 预期恰好一处 root 密码项，实际找到 {count} 处")
+shadow.write_text(updated, encoding="utf-8")
+release = Path(release_path)
+banner = Path(banner_path)
+if release.is_file():
+    content = release.read_text(encoding="utf-8")
+    updated, count = re.subn(
+        r"^DISTRIB_DESCRIPTION=.*$",
+        f"DISTRIB_DESCRIPTION='OpenWrt Build {build_time}'",
+        content,
+        count=1,
+        flags=re.MULTILINE,
+    )
+    if count != 1:
+        raise SystemExit(f"{release}: 未找到 DISTRIB_DESCRIPTION")
+    release.write_text(updated, encoding="utf-8")
+if banner.is_file():
+    content = banner.read_text(encoding="utf-8")
+    marker = f"Build time: {build_time}"
+    if marker not in content:
+        banner.write_text(marker + "\n" + content, encoding="utf-8")
+PY
 
 for scope in common "$PLATFORM" "$DEVICE"; do
     patch_dir="$RECIPE_ROOT/patches/source/$scope"

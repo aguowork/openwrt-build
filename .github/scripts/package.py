@@ -110,6 +110,7 @@ def package_release(root):
     source_url = metadata["source"]["url"].removesuffix(".git")
     source_commit = metadata["source"]["commit"]
     features = ", ".join(metadata["features"]) or "默认插件"
+    default_password = (root / "configs/root-password.txt").read_text(encoding="utf-8").strip()
     notes = [
         f'# {metadata["device"]}',
         "",
@@ -119,6 +120,12 @@ def package_release(root):
         f'- Kernel：`{kernel}`',
         f'- 可选插件：{features}',
         f'- 构建日志：{metadata["run_url"]}',
+        "",
+        "首次刷入或恢复出厂设置后的登录信息：",
+        "",
+        "- 管理地址：`http://192.168.169.1`",
+        "- 用户名：`root`",
+        f"- 默认密码：`{default_password}`",
         "",
         f'默认设置和设备说明见[本次构建的 README](https://github.com/{repository}/blob/{recipe_commit}/README.md)。',
         "",
