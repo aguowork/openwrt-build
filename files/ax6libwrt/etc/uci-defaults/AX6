@@ -21,16 +21,13 @@ uci set network.wwan.proto='dhcp'
 uci commit network
 
 # 2.4G（radio1）：AX 模式、40MHz 带宽及热点设置。
-uci set wireless.radio1.cell_density='0'
 uci set wireless.radio1.htmode='HE40'
 uci set wireless.default_radio1.ssid='H'
 uci set wireless.default_radio1.key='88888888..'
 uci set wireless.default_radio1.encryption='psk2'
 
-# 5G（radio0）：AX 模式、80MHz 带宽、信道 36 及热点设置。
-uci set wireless.radio0.cell_density='0'
+# 5G（radio0）：AX 模式、80MHz 带宽及热点设置。
 uci set wireless.radio0.htmode='HE80'
-uci set wireless.radio0.channel='36'
 uci set wireless.default_radio0.ssid='H'
 uci set wireless.default_radio0.key='88888888..'
 uci set wireless.default_radio0.encryption='psk2'
