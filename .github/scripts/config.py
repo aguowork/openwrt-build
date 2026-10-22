@@ -10,8 +10,9 @@ def read_config(path):
     options = {}
     for number, line in enumerate(Path(path).read_text(encoding="utf-8").splitlines(), 1):
         line = line.strip()
-        enabled = re.fullmatch(r"(CONFIG_\w[\w-]*)=(.+)", line)
-        disabled = re.fullmatch(r"# (CONFIG_\w[\w-]*) is not set", line)
+        # OpenWrt 包名可包含点号，例如 libusb-1.0。
+        enabled = re.fullmatch(r"(CONFIG_\w[\w.-]*)=(.+)", line)
+        disabled = re.fullmatch(r"# (CONFIG_\w[\w.-]*) is not set", line)
         if enabled:
             options[enabled[1]] = enabled[2]
         elif disabled:
