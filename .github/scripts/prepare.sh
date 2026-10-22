@@ -105,6 +105,5 @@ python3 .github/scripts/config.py merge "${configs[@]}" > .work/requested.config
 cp .work/requested.config "$SOURCE_DIR/.config"
 make -C "$SOURCE_DIR" defconfig
 python3 .github/scripts/config.py verify .work/requested.config "$SOURCE_DIR/.config" \
-    > .work/config-check.log
-cat .work/config-check.log
+    2>&1 | tee .work/config-check.log
 echo '::endgroup::'

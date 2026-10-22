@@ -120,6 +120,12 @@ if [[ ${INCLUDE_PASSWALL:-false} == true ]]; then
     fi
 fi
 
+if [[ $PLATFORM == mt798x ]]; then
+    # 上游将 WireGuard 内核模块列为平台默认包，与公共配置的禁用项冲突。
+    sed -i 's/\(^\|[[:blank:]]\)kmod-wireguard\([[:blank:]]\|$\)/\1\2/g' \
+        target/linux/mediatek/Makefile
+fi
+
 if [[ $PLATFORM == nss ]]; then
     target_mk=target/linux/qualcommax/Makefile
     sed -i -e 's/ automount / /g' -e 's/ cpufreq / /g' \
