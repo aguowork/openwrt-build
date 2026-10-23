@@ -9,6 +9,11 @@ import sys
 REQUIRED_PACKAGES = {
     "bash", "curl", "iwinfo", "jq", "jsonfilter", "luci-compat", "rpcd-mod-iwinfo",
 }
+DAED_KERNEL_OPTIONS = {
+    "CONFIG_KERNEL_DEBUG_INFO", "CONFIG_KERNEL_DEBUG_INFO_BTF",
+    "CONFIG_KERNEL_BPF_EVENTS", "CONFIG_KERNEL_BPF_STREAM_PARSER",
+    "CONFIG_KERNEL_CGROUPS", "CONFIG_KERNEL_CGROUP_BPF", "CONFIG_KERNEL_XDP_SOCKETS",
+}
 
 
 def is_luci_feature(key):
@@ -64,6 +69,12 @@ def verify_config(requested_path, actual_path):
         dependency = key.startswith(("CONFIG_PACKAGE_kmod-", "CONFIG_PACKAGE_lib"))
         if key.startswith("CONFIG_PACKAGE_") and not dependency and value == "n" and resolved == "y":
             errors.append(f"已禁用的软件包被依赖重新启用：{key}")
+    if requested.get("CONFIG_PACKAGE_luci-app-daed") == "y":
+        for key in sorted(DAED_KERNEL_OPTIONS):
+            if actual.get(key, "n") != "y":
+                errors.append(f"大鹅缺少必需的内核配置：{key}=y")
+        if actual.get("CONFIG_KERNEL_DEBUG_INFO_REDUCED", "n") == "y":
+            errors.append("大鹅需要完整调试信息：CONFIG_KERNEL_DEBUG_INFO_REDUCED 必须禁用")
     if differences:
         print("上游依赖解析调整了以下配置（完整配置随 Release 发布）：")
         print("\n".join(differences))

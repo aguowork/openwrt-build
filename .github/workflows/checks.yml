@@ -1,0 +1,37 @@
+name: 检查构建脚本
+
+on:
+  push:
+    paths:
+      - .github/**
+      - configs/**
+      - profiles/**
+      - feeds/**
+      - patches/**
+  pull_request:
+    paths:
+      - .github/**
+      - configs/**
+      - profiles/**
+      - feeds/**
+      - patches/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: 检查 Bash 语法
+        run: |
+          for script in .github/scripts/*.sh; do
+            bash -n "$script"
+          done
+      - name: 检查故障回归
+        run: python3 -m unittest discover -s .github/tests -v

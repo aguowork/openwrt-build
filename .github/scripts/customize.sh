@@ -2,6 +2,8 @@
 # 只处理当前固件使用的包。设备补丁放在 patches/source/，运行时文件放在 files/。
 set -Eeuo pipefail
 : "${RECIPE_ROOT:?}" "${SOURCE_DIR:?}" "${PLATFORM:?}" "${DEVICE:?}" "${BUILD_TIME:?}"
+# shellcheck source=.github/scripts/network.sh
+source "$RECIPE_ROOT/.github/scripts/network.sh"
 cd "$SOURCE_DIR"
 
 # 所有设备使用同一套公开默认密码、版本说明和登录 banner。
@@ -77,14 +79,24 @@ find feeds/luci/collections -name Makefile -type f -exec sed -i \
 # 兼容旧版 package-metadata 的虚拟包递归依赖写法，新版不会命中。
 sed -i 's/<PACKAGE_$pkgname/!=y/g' scripts/package-metadata.pl
 wechat=custom/luci-app-wechatpush/Makefile
-sed -i \
-    -e 's/^config PACKAGE_$(PKG_NAME)_Local_Disk_Information_Detection$/config PACKAGE_$(PKG_NAME)_Enable_Local_Disk_Information_Detection/' \
-    -e 's/^config PACKAGE_$(PKG_NAME)_Host_Information_Detection$/config PACKAGE_$(PKG_NAME)_Enable_Host_Information_Detection/' "$wechat"
+sed -Ei \
+    's/^([[:blank:]]*config[[:blank:]]+PACKAGE_\$\(PKG_NAME\)_)(Local_Disk_Information_Detection|Host_Information_Detection)([[:blank:]]*)$/\1Enable_\2\3/' "$wechat"
+for option in Local_Disk_Information_Detection Host_Information_Detection; do
+    awk -v symbol="PACKAGE_\$(PKG_NAME)_Enable_$option" \
+        '$1 == "config" && $2 == symbol { found = 1 } END { exit !found }' "$wechat" || {
+        echo "微信推送配置名称已变化，请更新兼容处理：$option" >&2
+        exit 1
+    }
+done
 
-sed -i -e "s/record_enable '1'/record_enable '0'/g" \
-    -e "s/disable_hnat '1'/disable_hnat '0'/g" \
-    -e "s/auto_load_engine '1'/auto_load_engine '0'/g" \
-    custom/open-app-filter/files/appfilter.config
+oaf_config=custom/open-app-filter/files/appfilter.config
+for option in record_enable disable_hnat auto_load_engine; do
+    sed -Ei "s/^([[:blank:]]*option[[:blank:]]+$option[[:blank:]]+)[\"']?[01][\"']?([[:blank:]]*(#.*)?)$/\1'0'\2/" "$oaf_config"
+    grep -Eq "^[[:blank:]]*option[[:blank:]]+$option[[:blank:]]+'0'([[:blank:]]*(#.*)?)$" "$oaf_config" || {
+        echo "OAF 默认配置未生效，请检查上游配置格式：$option" >&2
+        exit 1
+    }
+done
 oaf_defaults=custom/luci-app-oaf/root/etc/uci-defaults/94_feature_3.0
 [[ ! -f $oaf_defaults ]] || sed -i '/\(disable_hnat\|auto_load_engine\)/d' "$oaf_defaults"
 sed -i '/dns_redirect/d' package/network/services/dnsmasq/files/dhcp.conf
@@ -113,17 +125,11 @@ if [[ ${INCLUDE_PASSWALL:-false} == true ]]; then
     version=$(sed -n 's/^GEOIP_VER:=\([0-9]*\)$/\1/p' "$geodata")
     if [[ -n $version ]]; then
         url="https://github.com/v2fly/geoip/releases/download/$version"
-        old_hash=$(curl --fail --location --retry 3 "$url/geoip.dat.sha256sum" | awk '{print $1}')
-        new_hash=$(curl --fail --location --retry 3 "$url/geoip-only-cn-private.dat.sha256sum" | awk '{print $1}')
+        old_hash=$(curl_fetch "$url/geoip.dat.sha256sum" | awk '{print $1}')
+        new_hash=$(curl_fetch "$url/geoip-only-cn-private.dat.sha256sum" | awk '{print $1}')
         [[ $old_hash =~ ^[a-fA-F0-9]{64}$ && $new_hash =~ ^[a-fA-F0-9]{64}$ ]]
         sed -i -e 's/=geoip\.dat/=geoip-only-cn-private.dat/g' -e "s/$old_hash/$new_hash/g" "$geodata"
     fi
-fi
-
-if [[ $PLATFORM == mt798x ]]; then
-    # 上游将 WireGuard 内核模块列为平台默认包，与公共配置的禁用项冲突。
-    sed -i 's/\(^\|[[:blank:]]\)kmod-wireguard\([[:blank:]]\|$\)/\1\2/g' \
-        target/linux/mediatek/Makefile
 fi
 
 if [[ $PLATFORM == nss ]]; then
@@ -142,12 +148,17 @@ if [[ $PLATFORM == nss ]]; then
     if ! grep -q 'define Package/ath11k-firmware-ipq8074-ddwrt' "$firmware_mk"; then
         firmware_commit=63c7fdb3c9685d9f497d6128d9280a772f77562d
         firmware_url="https://raw.githubusercontent.com/VIKINGYFY/immortalwrt/$firmware_commit/$firmware_mk"
-        curl --fail --location --retry 3 --output "$firmware_mk" "$firmware_url"
+        curl_fetch --output "$firmware_mk" "$firmware_url"
         printf 'source-file\tath11k-firmware\t%s\t%s\t%s\n' "$firmware_url" "$firmware_commit" "$firmware_commit" \
             >> "$RECIPE_ROOT/.work/sources.lock"
     fi
     sed -i 's/ath11k-firmware-ipq8074\([[:space:]]\|$\)/ath11k-firmware-ipq8074-ddwrt\1/g' \
         target/linux/qualcommax/ipq807x/target.mk
+    grep -Eq 'ath11k-firmware-ipq8074-ddwrt([[:space:]]|$)' \
+        target/linux/qualcommax/ipq807x/target.mk || {
+        echo 'AX6 的 ath11k 固件选择未生效，请检查上游设备配置。' >&2
+        exit 1
+    }
 
     pbuf=package/kernel/mac80211/files/pbuf.uci
     [[ ! -f $pbuf ]] || sed -i -e "s/auto_scale '1'/auto_scale 'off'/g" \

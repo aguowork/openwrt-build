@@ -8,6 +8,8 @@ trap 'echo "::error file=${BASH_SOURCE[0]},line=$LINENO::源码准备失败"' ER
 : "${GITHUB_RUN_ID:?}" "${GITHUB_RUN_ATTEMPT:?}" "${DEVICE:?}"
 export RECIPE_ROOT="$GITHUB_WORKSPACE"
 export SOURCE_DIR="$RECIPE_ROOT/openwrt"
+# shellcheck source=.github/scripts/network.sh
+source "$RECIPE_ROOT/.github/scripts/network.sh"
 export INCLUDE_PASSWALL=${INCLUDE_PASSWALL:-false}
 export INCLUDE_DAED=${INCLUDE_DAED:-false}
 
@@ -38,8 +40,7 @@ mkdir -p .work
 exec > >(tee .work/prepare.log) 2>&1
 
 echo '::group::检出固件源码'
-git -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=60 clone \
-    --depth 1 --single-branch --branch "$SOURCE_BRANCH" -- "$SOURCE_URL" "$SOURCE_DIR"
+git_clone "$SOURCE_DIR" --depth 1 --single-branch --branch "$SOURCE_BRANCH" -- "$SOURCE_URL"
 SOURCE_COMMIT=$(git -C "$SOURCE_DIR" rev-parse HEAD)
 BUILD_TIME=$(date --iso-8601=seconds)
 RELEASE_TAG="$DEVICE-$(date +%Y%m%d-%H%M%S)-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"

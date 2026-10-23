@@ -2,11 +2,13 @@
 # 先生成上游 feeds，再将清单中的包集中到一个本地 feed。
 set -Eeuo pipefail
 : "${RECIPE_ROOT:?}" "${SOURCE_DIR:?}" "${INCLUDE_PASSWALL:?}"
+# shellcheck source=.github/scripts/network.sh
+source "$RECIPE_ROOT/.github/scripts/network.sh"
 cd "$SOURCE_DIR"
 
 [[ -f feeds.conf ]] || cp feeds.conf.default feeds.conf
 sed -i '/^[^#]*[[:space:]]\(packages_ext\|small8\|custom_feed\|custom\)[[:space:]]/d' feeds.conf
-./scripts/feeds update -a
+retry_network ./scripts/feeds update -a
 
 for feed in feeds/*; do
     [[ -e "$feed/.git" ]] || continue
@@ -21,7 +23,7 @@ done
 source "$RECIPE_ROOT/feeds/golang.conf"
 : "${GOLANG_URL:?}" "${GOLANG_BRANCH:?}"
 compiler_checkout=$(mktemp -d "$RECIPE_ROOT/.work/golang.XXXXXX")
-git clone --depth 1 --branch "$GOLANG_BRANCH" -- "$GOLANG_URL" "$compiler_checkout"
+git_clone "$compiler_checkout" --depth 1 --branch "$GOLANG_BRANCH" -- "$GOLANG_URL"
 [[ -f "$compiler_checkout/golang/Makefile" && -f "$compiler_checkout/golang-package.mk" ]] || {
     echo 'Go 软件源缺少编译所需的 Makefile。' >&2
     exit 1
@@ -60,13 +62,13 @@ while IFS='|' read -r condition policy url branch mappings; do
     ((${#selected[@]})) || continue
 
     checkout=$(mktemp -d "$RECIPE_ROOT/.work/source.XXXXXX")
-    args=(clone --depth 1 --filter=blob:none --sparse)
+    args=(--depth 1 --filter=blob:none --sparse)
     [[ $branch == HEAD ]] || args+=(--branch "$branch")
-    git -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=60 "${args[@]}" -- "$url" "$checkout"
+    git_clone "$checkout" "${args[@]}" -- "$url"
     if [[ " ${paths[*]} " == *' . '* ]]; then
-        git -C "$checkout" sparse-checkout disable
+        retry_network git -C "$checkout" sparse-checkout disable
     else
-        git -C "$checkout" sparse-checkout set -- "${paths[@]}"
+        retry_network git -C "$checkout" sparse-checkout set -- "${paths[@]}"
     fi
     printf 'custom\t%s\t%s\t%s\t%s\n' "${selected[*]}" "$url" "$branch" \
         "$(git -C "$checkout" rev-parse HEAD)" >> "$RECIPE_ROOT/.work/sources.lock"
@@ -91,4 +93,4 @@ find feeds package custom \( -type d -o -type l \) -name adguardhome -prune -exe
 
 printf '\nsrc-link custom %s/custom\n' "$SOURCE_DIR" >> feeds.conf
 # 首次注册新 feed 必须执行 update；prepare.sh 的 update -i 只重建已有索引。
-./scripts/feeds update custom
+retry_network ./scripts/feeds update custom

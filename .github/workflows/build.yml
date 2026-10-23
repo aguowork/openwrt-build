@@ -49,12 +49,21 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: 检查构建脚本
+        run: python3 -m unittest discover -s .github/tests -v
+
       - name: 准备编译环境
         run: |
           sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc \
             /usr/local/.ghcup /usr/share/swift /opt/hostedtoolcache
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
+          # 优先使用 HTTPS 官方镜像，避免 Azure HTTP 镜像持续低速。
+          if [[ -f /etc/apt/apt-mirrors.txt ]]; then
+            sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' \
+              /etc/apt/apt-mirrors.txt
+          fi
+          apt_options=(-o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30)
+          sudo apt-get "${apt_options[@]}" update
+          sudo apt-get "${apt_options[@]}" install -y --no-install-recommends \
             asciidoc binutils bison build-essential ccache clang cmake curl \
             device-tree-compiler dwarves file flex g++-multilib gawk gcc-multilib \
             gettext git gperf libelf-dev libfuse-dev libglib2.0-dev libgmp-dev \
