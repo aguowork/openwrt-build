@@ -89,16 +89,54 @@ for option in Local_Disk_Information_Detection Host_Information_Detection; do
     }
 done
 
-oaf_config=custom/open-app-filter/files/appfilter.config
-for option in record_enable disable_hnat auto_load_engine; do
-    sed -Ei "s/^([[:blank:]]*option[[:blank:]]+$option[[:blank:]]+)[\"']?[01][\"']?([[:blank:]]*(#.*)?)$/\1'0'\2/" "$oaf_config"
-    grep -Eq "^[[:blank:]]*option[[:blank:]]+$option[[:blank:]]+'0'([[:blank:]]*(#.*)?)$" "$oaf_config" || {
-        echo "OAF 默认配置未生效，请检查上游配置格式：$option" >&2
-        exit 1
-    }
-done
-oaf_defaults=custom/luci-app-oaf/root/etc/uci-defaults/94_feature_3.0
-[[ ! -f $oaf_defaults ]] || sed -i '/\(disable_hnat\|auto_load_engine\)/d' "$oaf_defaults"
+if [[ -f custom/open-app-filter/files/fwx.config ]]; then
+    # OAF 7.x 改用 fwx；直接预置配置，避免首次启动生成上游默认的启用状态。
+    python3 - <<'PY'
+import shlex
+from pathlib import Path
+
+source = Path("custom/open-app-filter/files/fwx.config")
+defaults = {
+    ("appfilter", "enable"): "0",
+    ("macfilter", "enable"): "0",
+    ("record", "enable"): "0",
+    ("advanced", "disable_hnat"): "0",
+}
+counts = dict.fromkeys(defaults, 0)
+section = None
+lines = []
+for line in source.read_text(encoding="utf-8").splitlines(keepends=True):
+    tokens = shlex.split(line, comments=True)
+    if tokens and tokens[0] == "config":
+        section = tokens[2] if len(tokens) == 3 else None
+    if len(tokens) == 3 and tokens[0] == "option":
+        key = (section, tokens[1])
+        if key in defaults:
+            if tokens[2] not in {"0", "1"}:
+                raise SystemExit(f"OAF 配置值无法识别：fwx.{section}.{tokens[1]}")
+            counts[key] += 1
+            line = f"\toption {tokens[1]} '{defaults[key]}'\n"
+    lines.append(line)
+for (section, option), count in counts.items():
+    if count != 1:
+        raise SystemExit(f"OAF 配置结构已变化：fwx.{section}.{option} 出现 {count} 次")
+target = Path("files/etc/config/fwx")
+target.parent.mkdir(parents=True, exist_ok=True)
+target.write_text("".join(lines), encoding="utf-8")
+PY
+else
+    # 兼容仍使用 appfilter 配置的 OAF 旧版本。
+    oaf_config=custom/open-app-filter/files/appfilter.config
+    for option in record_enable disable_hnat auto_load_engine; do
+        sed -Ei "s/^([[:blank:]]*option[[:blank:]]+$option[[:blank:]]+)[\"']?[01][\"']?([[:blank:]]*(#.*)?)$/\1'0'\2/" "$oaf_config"
+        grep -Eq "^[[:blank:]]*option[[:blank:]]+$option[[:blank:]]+'0'([[:blank:]]*(#.*)?)$" "$oaf_config" || {
+            echo "OAF 默认配置未生效，请检查上游配置格式：$option" >&2
+            exit 1
+        }
+    done
+    oaf_defaults=custom/luci-app-oaf/root/etc/uci-defaults/94_feature_3.0
+    [[ ! -f $oaf_defaults ]] || sed -i '/\(disable_hnat\|auto_load_engine\)/d' "$oaf_defaults"
+fi
 sed -i '/dns_redirect/d' package/network/services/dnsmasq/files/dhcp.conf
 
 if [[ -f package/system/opkg/Makefile ]]; then

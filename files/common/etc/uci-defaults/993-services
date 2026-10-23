@@ -3,7 +3,17 @@
 /etc/init.d/custom_task enable
 [ ! -x /etc/init.d/smp_affinity ] || /etc/init.d/smp_affinity enable
 
-if [ "$(uci -q get appfilter.global.enable)" = '0' ]; then
+if [ -f /etc/config/fwx ]; then
+    # OAF 7.x 的过滤、MAC 过滤与记录共用服务，全部关闭时才禁用自启动。
+    oaf_disabled=1
+    for section in appfilter macfilter record; do
+        [ "$(uci -q get "fwx.$section.enable")" = '0' ] || oaf_disabled=0
+    done
+else
+    oaf_disabled=0
+    [ "$(uci -q get appfilter.global.enable)" != '0' ] || oaf_disabled=1
+fi
+if [ "$oaf_disabled" = '1' ]; then
     /etc/init.d/appfilter disable
     /etc/init.d/appfilter stop
 fi
