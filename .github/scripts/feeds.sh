@@ -65,6 +65,14 @@ while IFS='|' read -r condition url branch mappings; do
     rm -rf "$checkout"
 done < "$RECIPE_ROOT/feeds/custom.conf"
 
+# Kong 的旧版本号含日期连字符，APK 只允许用 -r 标记修订号。
+# 在建立 feed 索引前仅修正这个已知版本；点分隔写法也兼容 IPK。
+adguard_makefile=custom/luci-app-adguardhome/Makefile
+if [[ -f $adguard_makefile ]] && grep -qxF 'PKG_VERSION:=1.8-20221120' "$adguard_makefile"; then
+    sed -i 's/^PKG_VERSION:=1[.]8-20221120$/PKG_VERSION:=1.8.20221120/' "$adguard_makefile"
+    echo 'luci-app-adguardhome：版本号 1.8-20221120 → 1.8.20221120（APK 兼容）'
+fi
+
 printf '\nsrc-link custom %s/custom\n' "$SOURCE_DIR" >> feeds.conf
 # 首次注册新 feed 必须执行 update；prepare.sh 的 update -i 只重建已有索引。
 retry_network ./scripts/feeds update custom
