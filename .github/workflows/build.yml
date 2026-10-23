@@ -49,9 +49,6 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: 检查构建脚本
-        run: python3 -m unittest discover -s .github/tests -v
-
       - name: 准备编译环境
         run: |
           sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc \

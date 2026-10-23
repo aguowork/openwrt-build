@@ -66,16 +66,6 @@ AdGuardHome 使用 [Kong 的 LuCI 界面](https://github.com/kongfl888/luci-app-
 
 `files/` 内路径对应固件根目录，设备文件覆盖同路径的公共文件。补丁用法见 [补丁说明](patches/README.md)。
 
-## 修改构建脚本
-
-提交相关脚本或配置后，Actions 会运行独立的脚本检查，不编译固件。检查覆盖网络失败重试、配置依赖调整、插件缺失，以及微信推送和 OAF 的源码兼容处理。完整构建也会先运行这些检查。
-
-本地需要 Python 3.11+、Bash、Git 和 OpenSSL，执行：
-
-```bash
-python3 -m unittest discover -s .github/tests -v
-```
-
 ## 来源与许可
 
 基于 [ZqinKing/wrt_release](https://github.com/ZqinKing/wrt_release) 重构，采用 [GPLv3](LICENSE)；上游源码和软件包遵循各自许可证。
