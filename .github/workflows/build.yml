@@ -130,13 +130,12 @@ jobs:
           compression-level: 0
           retention-days: 7
 
-      - name: 保存失败日志
+      - name: 保存失败诊断
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: build-logs-${{ inputs.device }}-${{ github.run_attempt }}
           path: |
-            .work/*.log
             .work/*.config
             .work/*.json
             .work/*.lock
