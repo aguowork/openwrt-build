@@ -90,9 +90,9 @@ jobs:
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: openwrt/.ccache
-          key: ccache-${{ runner.os }}-${{ runner.arch }}-${{ inputs.device }}-${{ hashFiles('profiles/**', 'configs/**', 'feeds/**', 'patches/**', '.github/scripts/**') }}-${{ github.run_id }}-${{ github.run_attempt }}
+          key: ccache-${{ runner.os }}-${{ runner.arch }}-${{ inputs.device }}-${{ hashFiles('profiles/**', 'configs/**', 'feeds/**', '.github/scripts/**') }}-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: |
-            ccache-${{ runner.os }}-${{ runner.arch }}-${{ inputs.device }}-${{ hashFiles('profiles/**', 'configs/**', 'feeds/**', 'patches/**', '.github/scripts/**') }}-
+            ccache-${{ runner.os }}-${{ runner.arch }}-${{ inputs.device }}-${{ hashFiles('profiles/**', 'configs/**', 'feeds/**', '.github/scripts/**') }}-
             ccache-${{ runner.os }}-${{ runner.arch }}-${{ inputs.device }}-
 
       - name: 下载编译依赖

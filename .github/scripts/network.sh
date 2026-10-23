@@ -43,8 +43,3 @@ git_clone() {
     fi
     retry_network clone_once "$destination" "$@"
 }
-
-curl_fetch() {
-    curl --fail --location --retry 2 --retry-all-errors --retry-delay 5 \
-        --connect-timeout 20 --max-time 180 --retry-max-time 300 "$@"
-}

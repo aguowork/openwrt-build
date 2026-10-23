@@ -7,7 +7,8 @@ source "$RECIPE_ROOT/.github/scripts/network.sh"
 cd "$SOURCE_DIR"
 
 [[ -f feeds.conf ]] || cp feeds.conf.default feeds.conf
-sed -i '/^[^#]*[[:space:]]\(packages_ext\|small8\|custom_feed\|custom\)[[:space:]]/d' feeds.conf
+# 只重建本项目注册的 custom feed，保留上游原有的软件源。
+sed -i '/^[^#]*[[:space:]]custom[[:space:]]/d' feeds.conf
 retry_network ./scripts/feeds update -a
 
 for feed in feeds/*; do
@@ -18,33 +19,15 @@ for feed in feeds/*; do
         "$(git -C "$feed" rev-parse HEAD)" >> "$RECIPE_ROOT/.work/sources.lock"
 done
 
-# Go 的辅助文件必须保留在 feeds/packages/lang/golang，不能移入普通插件 feed。
-# shellcheck source=/dev/null
-source "$RECIPE_ROOT/feeds/golang.conf"
-: "${GOLANG_URL:?}" "${GOLANG_BRANCH:?}"
-compiler_checkout=$(mktemp -d "$RECIPE_ROOT/.work/golang.XXXXXX")
-git_clone "$compiler_checkout" --depth 1 --branch "$GOLANG_BRANCH" -- "$GOLANG_URL"
-[[ -f "$compiler_checkout/golang/Makefile" && -f "$compiler_checkout/golang-package.mk" ]] || {
-    echo 'Go 软件源缺少编译所需的 Makefile。' >&2
-    exit 1
-}
-printf 'toolchain\tgolang\t%s\t%s\t%s\n' "$GOLANG_URL" "$GOLANG_BRANCH" \
-    "$(git -C "$compiler_checkout" rev-parse HEAD)" >> "$RECIPE_ROOT/.work/sources.lock"
-rm -rf feeds/packages/lang/golang
-mv "$compiler_checkout" feeds/packages/lang/golang
-
 mkdir -p custom
-while IFS='|' read -r condition policy url branch mappings; do
+while IFS='|' read -r condition url branch mappings; do
     [[ -n $condition && $condition != \#* ]] || continue
     case "$condition" in
         always) ;;
         passwall) [[ $INCLUDE_PASSWALL == true ]] || continue ;;
         *) echo "未知软件源条件：$condition" >&2; exit 1 ;;
     esac
-    [[ $policy == replace || $policy == missing ]] || { echo "未知替换策略：$policy" >&2; exit 1; }
-
     read -r -a candidates <<< "$mappings"
-    selected=()
     paths=()
     for mapping in "${candidates[@]}"; do
         path=${mapping%%:*}
@@ -52,14 +35,9 @@ while IFS='|' read -r condition policy url branch mappings; do
         [[ $name =~ ^[a-zA-Z0-9][a-zA-Z0-9_.-]*$ && $path != /* && $path != *..* ]] || {
             echo "无效的包映射：$mapping" >&2; exit 1;
         }
-        if [[ $policy == missing ]] && [[ -n $(find feeds package -type f -path "*/$name/Makefile" -print -quit) ]]; then
-            echo "$name：保留上游版本"
-            continue
-        fi
-        selected+=("$mapping")
         paths+=("$path")
     done
-    ((${#selected[@]})) || continue
+    ((${#candidates[@]})) || continue
 
     checkout=$(mktemp -d "$RECIPE_ROOT/.work/source.XXXXXX")
     args=(--depth 1 --filter=blob:none --sparse)
@@ -70,15 +48,15 @@ while IFS='|' read -r condition policy url branch mappings; do
     else
         retry_network git -C "$checkout" sparse-checkout set -- "${paths[@]}"
     fi
-    printf 'custom\t%s\t%s\t%s\t%s\n' "${selected[*]}" "$url" "$branch" \
+    printf 'custom\t%s\t%s\t%s\t%s\n' "${candidates[*]}" "$url" "$branch" \
         "$(git -C "$checkout" rev-parse HEAD)" >> "$RECIPE_ROOT/.work/sources.lock"
 
-    for mapping in "${selected[@]}"; do
+    for mapping in "${candidates[@]}"; do
         path=${mapping%%:*}
         name=${mapping##*:}
         [[ -f "$checkout/$path/Makefile" ]] || { echo "$url 缺少 $path/Makefile" >&2; exit 1; }
         # 删除同名定义后再重建索引，避免依赖解析命中另一份包。
-        find feeds package -type d -name "$name" -prune -exec rm -rf {} +
+        find feeds package \( -type d -o -type l \) -name "$name" -prune -exec rm -rf -- {} +
         mkdir -p "custom/$name"
         cp -a "$checkout/$path/." "custom/$name/"
         rm -rf "custom/$name/.git"
@@ -86,10 +64,6 @@ while IFS='|' read -r condition policy url branch mappings; do
     done
     rm -rf "$checkout"
 done < "$RECIPE_ROOT/feeds/custom.conf"
-
-# Kong 的 LuCI 应用在运行时下载官方核心，不保留 feeds 或源码自带的
-# adguardhome 包；在全部包准备完成后清理，再由 prepare.sh 统一重建索引。
-find feeds package custom \( -type d -o -type l \) -name adguardhome -prune -exec rm -rf -- {} +
 
 printf '\nsrc-link custom %s/custom\n' "$SOURCE_DIR" >> feeds.conf
 # 首次注册新 feed 必须执行 update；prepare.sh 的 update -i 只重建已有索引。

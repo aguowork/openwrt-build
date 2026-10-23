@@ -8,7 +8,7 @@ import shutil
 import sys
 import tarfile
 
-from config import read_config
+from config import FEATURE_PACKAGES, read_config, required_packages, selected_devices, verify_config
 
 
 def sha256(path):
@@ -19,11 +19,7 @@ def sha256(path):
 def select_images(target_dir, final_config):
     profiles_path = target_dir / "profiles.json"
     profiles = json.loads(profiles_path.read_text(encoding="utf-8"))["profiles"]
-    selected = {
-        key.rsplit("_DEVICE_", 1)[1]
-        for key, value in read_config(final_config).items()
-        if key.startswith("CONFIG_TARGET_") and "_DEVICE_" in key and value == "y"
-    }
+    selected = selected_devices(read_config(final_config))
     if not selected:
         raise ValueError("最终配置没有选择设备。")
     images = {}
@@ -66,17 +62,21 @@ def read_manifests(paths):
     return kernels.pop(), sorted(applications)
 
 
-def verify_features(manifests, features):
-    required = set()
-    if "daed" in features:
-        required.update({"luci-app-daed", "daed", "daed-geoip", "daed-geosite"})
-    if "passwall" in features:
-        required.add("luci-app-passwall")
+def verify_packages(manifests, required_config):
+    options = read_config(required_config)
+    required = required_packages(options)
+    forbidden = {
+        package for packages in FEATURE_PACKAGES.values() for package in packages
+        if options.get(f"CONFIG_PACKAGE_{package}") == "n"
+    }
     for path in manifests:
         installed = {line.partition(" - ")[0] for line in path.read_text(encoding="utf-8").splitlines()}
         missing = required - installed
         if missing:
             raise ValueError(f"{path.name} 缺少所选功能的软件包：{', '.join(sorted(missing))}")
+        unexpected = forbidden & installed
+        if unexpected:
+            raise ValueError(f"{path.name} 编入了已关闭的功能：{', '.join(sorted(unexpected))}")
 
 
 def package_release(root):
@@ -84,11 +84,19 @@ def package_release(root):
     source = root / "openwrt"
     work = root / ".work"
     metadata = json.loads((work / "build.json").read_text(encoding="utf-8"))
+    for name in ("baseline.config", "required.config", "requested.config", "sources.lock"):
+        if not (work / name).is_file():
+            raise ValueError(f"缺少构建记录：{name}")
+    verify_config(work / "required.config", source / ".config", work / "baseline.config")
+    actual = read_config(source / ".config")
+    board = actual["CONFIG_TARGET_BOARD"].strip('"')
+    subtarget = actual["CONFIG_TARGET_SUBTARGET"].strip('"')
+    metadata["target"] = f"{board}/{subtarget}"
     target_dir = source / "bin" / "targets" / metadata["target"]
     images = select_images(target_dir, source / ".config")
     manifests = sorted(path for path in target_dir.glob("*.manifest") if path.name != "Packages.manifest")
     kernel, applications = read_manifests(manifests)
-    verify_features(manifests, metadata["features"])
+    verify_packages(manifests, work / "required.config")
     bin_dir = source / "bin"
     modules = sorted(
         path for path in bin_dir.rglob("kmod-*")
@@ -96,10 +104,6 @@ def package_release(root):
     )
     if not modules:
         raise ValueError("没有找到 kmod 包，停止发布。")
-    for required in (source / ".config", work / "requested.config", work / "sources.lock"):
-        if not required.is_file():
-            raise ValueError(f"缺少构建记录：{required}")
-
     output = root / "dist"
     output.mkdir(exist_ok=False)
     for path in [*images.values(), *manifests, target_dir / "profiles.json"]:
@@ -108,8 +112,8 @@ def package_release(root):
         if (target_dir / name).is_file():
             shutil.copyfile(target_dir / name, output / name)
     shutil.copyfile(source / ".config", output / "build.config")
-    shutil.copyfile(work / "requested.config", output / "requested.config")
-    shutil.copyfile(work / "sources.lock", output / "sources.lock")
+    for name in ("baseline.config", "required.config", "requested.config", "sources.lock"):
+        shutil.copyfile(work / name, output / name)
     archive_name = f'kmods-{metadata["device"]}.tar.gz'
     with tarfile.open(output / archive_name, "w:gz") as archive:
         for path in modules:
@@ -124,6 +128,8 @@ def package_release(root):
     source_url = metadata["source"]["url"].removesuffix(".git")
     source_commit = metadata["source"]["commit"]
     features = ", ".join(metadata["features"]) or "默认插件"
+    base_config = metadata.get("base_config")
+    base_label = base_config["path"] if base_config else "设备 Kconfig 默认值"
     default_password = (root / "configs/root-password.txt").read_text(encoding="utf-8").strip()
     notes = [
         f'# {metadata["device"]}',
@@ -131,6 +137,7 @@ def package_release(root):
         f'- 构建时间：{metadata["build_time"]}',
         f'- 源码：[{source_commit[:12]}]({source_url}/commit/{source_commit})（{metadata["source"]["branch"]}）',
         f'- 构建配置：[{recipe_commit[:12]}](https://github.com/{repository}/tree/{recipe_commit})',
+        f'- 上游配置基线：{base_label}',
         f'- Kernel：`{kernel}`',
         f'- 可选插件：{features}',
         f'- 构建日志：{metadata["run_url"]}',
@@ -145,7 +152,8 @@ def package_release(root):
         "",
         f'`{archive_name}` 包含本次构建的 {len(modules)} 个内核模块包；请与本次固件配套使用。',
         "",
-        "`build.config` 是实际编译配置；`requested.config` 是合并后的输入；`sources.lock` 记录源码和 feeds 的提交。",
+        "`baseline.config` 是上游原始基线（无基线时为空）；`required.config` 是显式增量；",
+        "`requested.config` 是合并后的输入；`build.config` 是实际配置；`sources.lock` 记录源码和 feeds 的提交。",
         "下载后可用 `sha256sum --check SHA256SUMS` 校验文件。",
         "",
         "LuCI 插件：",

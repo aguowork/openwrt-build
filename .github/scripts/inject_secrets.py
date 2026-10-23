@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import re
 import shlex
+import shutil
 import sys
 
 
@@ -97,7 +98,12 @@ def configure(root):
     })
     (root / "files/etc/config/wechatpush").chmod(0o600)
 
-    update_ddnsto_config(root / "custom/ddnsto/files/ddnsto.config", ddnsto_token)
+    # 只改固件覆盖文件，不向下载的软件包源码写入凭据。
+    ddnsto = root / "files/etc/config/ddnsto"
+    ddnsto.parent.mkdir(parents=True, exist_ok=True)
+    if not ddnsto.is_file():
+        shutil.copyfile(root / "custom/ddnsto/files/ddnsto.config", ddnsto)
+    update_ddnsto_config(ddnsto, ddnsto_token)
     permissions_script = root / "files/etc/uci-defaults/999-private-config-permissions"
     permissions_script.parent.mkdir(parents=True, exist_ok=True)
     permissions_script.write_text(
