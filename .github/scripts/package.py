@@ -114,6 +114,11 @@ def package_release(root):
     shutil.copyfile(source / ".config", output / "build.config")
     for name in ("baseline.config", "required.config", "requested.config", "sources.lock"):
         shutil.copyfile(work / name, output / name)
+    # Keep the build record intact; give the release placeholder uploadable content.
+    if not metadata.get("base_config") and (output / "baseline.config").stat().st_size == 0:
+        (output / "baseline.config").write_text(
+            "# No upstream baseline; using device Kconfig defaults.\n", encoding="utf-8"
+        )
     archive_name = f'kmods-{metadata["device"]}.tar.gz'
     with tarfile.open(output / archive_name, "w:gz") as archive:
         for path in modules:
@@ -152,7 +157,7 @@ def package_release(root):
         "",
         f'`{archive_name}` 包含本次构建的 {len(modules)} 个内核模块包；请与本次固件配套使用。',
         "",
-        "`baseline.config` 是上游原始基线（无基线时为空）；`required.config` 是显式增量；",
+        "`baseline.config` 是上游原始基线（无基线时仅含说明注释）；`required.config` 是显式增量；",
         "`requested.config` 是合并后的输入；`build.config` 是实际配置；`sources.lock` 记录源码和 feeds 的提交。",
         "下载后可用 `sha256sum --check SHA256SUMS` 校验文件。",
         "",
