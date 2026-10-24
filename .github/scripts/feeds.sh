@@ -73,6 +73,15 @@ if [[ -f $adguard_makefile ]] && grep -qxF 'PKG_VERSION:=1.8-20221120' "$adguard
     echo 'luci-app-adguardhome：版本号 1.8-20221120 → 1.8.20221120（APK 兼容）'
 fi
 
+# OAF 后端与 LuCI 安装了同名但内容不同的 ACL，需分别保留。
+# 仅修正已知安装规则的目标文件名；JSON 内的权限组及权限内容不变。
+oaf_makefile=custom/open-app-filter/Makefile
+oaf_acl_rule='^[[:space:]]*$(INSTALL_DATA) \./files/luci-app-oaf\.json $(1)/usr/share/rpcd/acl\.d/$'
+if [[ -f $oaf_makefile ]] && grep -q "$oaf_acl_rule" "$oaf_makefile"; then
+    sed -i "s|$oaf_acl_rule|&oaf.json|" "$oaf_makefile"
+    echo 'appfilter：后端 ACL 安装为 oaf.json，避免与 luci-app-oaf 冲突'
+fi
+
 printf '\nsrc-link custom %s/custom\n' "$SOURCE_DIR" >> feeds.conf
 # 首次注册新 feed 必须执行 update；prepare.sh 的 update -i 只重建已有索引。
 retry_network ./scripts/feeds update custom
