@@ -26,7 +26,12 @@ uci set wireless.default_radio1.ssid='H'
 uci set wireless.default_radio1.key='88888888..'
 uci set wireless.default_radio1.encryption='psk2'
 
-# 5G（radio0）：AX 模式、80MHz 带宽及热点设置。
+# 5G（radio0）：固定非 DFS 主信道，AX 模式、80MHz 带宽及热点设置。
+# 不固定信道时首启生成的配置是 channel='auto'，hostapd 会走 ACS 选信道：
+# ath11k 上 ACS 既可能选到 DFS 信道（52~64 / 100~144）而卡在 CAC 期间不广播 SSID，
+# 也可能因为同一 radio 上还有 STA 在扫描而直接启动失败，表现为 5G 热点"没起来"。
+# 36 属于 5150~5250 非 DFS 频段，也是 HE80（36~48）的主信道。
+uci set wireless.radio0.channel='36'
 uci set wireless.radio0.htmode='HE80'
 uci set wireless.default_radio0.ssid='H'
 uci set wireless.default_radio0.key='88888888..'
