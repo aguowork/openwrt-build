@@ -31,6 +31,13 @@ uci set wireless.default_radio1.encryption='psk2'
 # ath11k 上 ACS 既可能选到 DFS 信道（52~64 / 100~144）而卡在 CAC 期间不广播 SSID，
 # 也可能因为同一 radio 上还有 STA 在扫描而直接启动失败，表现为 5G 热点"没起来"。
 # 36 属于 5150~5250 非 DFS 频段，也是 HE80（36~48）的主信道。
+#
+# 注意：中继 STA（wifinet2）也挂在 radio0 上，一块射频同一时刻只能待在一个信道，
+# 因此 AP 与 STA 必须同信道。这里钉 36 的前提是上级 b1403 的 5G 也固定到 36~48，
+# 否则 STA 会连不上（现象：5G 热点能搜到，但中继不通、没有外网）。
+# 若 b1403 的 5G 落在 149 一类信道上，二选一：
+#   1) 登录上级路由把 b1403 的 5G 信道改成 36/40/44/48；
+#   2) 把 wifinet2.device 改成 'radio1'，改用 2.4G 回传、radio0 专职 5G 热点。
 uci set wireless.radio0.channel='36'
 uci set wireless.radio0.htmode='HE80'
 uci set wireless.default_radio0.ssid='H'
