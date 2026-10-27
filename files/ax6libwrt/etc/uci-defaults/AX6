@@ -45,12 +45,18 @@ uci set wireless.default_radio0.key='88888888..'
 uci set wireless.default_radio0.encryption='psk2'
 
 # 无线中继：通过 radio0 连接上级热点，接入 wwan 接口。
+# 加密方式必须与上级热点一致，否则认证阶段就失败（表现为反复 deauth、
+# 拿不到 IP，日志里是 authentication/association timeout）：
+#   上级 WPA2-PSK  -> 'psk2'      （b1403 实测为 WPA2，故此处用 psk2）
+#   上级 WPA3-SAE  -> 'sae'
+#   上级 WPA2/WPA3 混合 -> 'sae-mixed'
+# 用 `iwinfo <sta-if> scan | grep -A12 'ESSID: "b1403"'` 的 Encryption 字段确认。
 uci set wireless.wifinet2=wifi-iface
 uci set wireless.wifinet2.device='radio0'
 uci set wireless.wifinet2.mode='sta'
 uci set wireless.wifinet2.network='wwan'
 uci set wireless.wifinet2.ssid='b1403'
-uci set wireless.wifinet2.encryption='sae'
+uci set wireless.wifinet2.encryption='psk2'
 uci set wireless.wifinet2.key='13539012490'
 
 # 统一保存无线配置。
