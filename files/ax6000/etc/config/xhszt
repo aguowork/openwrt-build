@@ -7,5 +7,5 @@
 # 不使用每次请求都会变化的移动页面作品 ID。
 
 config xhszt 'main'
-	option enabled '0'
+	option enabled '1'
 	option share_code_b64 'NUVkU1RudHB5UnA='
