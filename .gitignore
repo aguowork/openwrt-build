@@ -1,5 +1,6 @@
 /openwrt/
 /dist/
 /.work/
+.workbuddy-ai/
 __pycache__/
 *.pyc
